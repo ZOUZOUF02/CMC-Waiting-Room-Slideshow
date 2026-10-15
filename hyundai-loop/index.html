@@ -1,0 +1,490 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Hyundai Waiting Room Loop</title>
+<style>
+@font-face{font-family:"Outfit";font-weight:300;src:url(fonts/outfit-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:"Outfit";font-weight:500;src:url(fonts/outfit-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Outfit";font-weight:700;src:url(fonts/outfit-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-weight:400;src:url(fonts/manrope-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-weight:600;src:url(fonts/manrope-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-weight:800;src:url(fonts/manrope-latin-800-normal.woff2) format("woff2")}
+
+/* ── Hyundai brand tokens (single theme on purpose: a TV loop is a lit screen, not a document) ── */
+:root{
+  --hy-blue:#002C5F; --hy-deep:#00172F; --hy-night:#000C1A;
+  --hy-sky:#00AAD2; --hy-sky-soft:#5CC7E1;
+  --hy-sand:#E4DCD3; --hy-light:#F6F3F2; --hy-gold:#A36B4F;
+  --hy-n:#E63312; --hy-hev:#8FD3B4;
+  --ink:var(--hy-light); --ink-2:var(--hy-sand); --ink-3:#9DB0C4;
+  --display:"Outfit","Segoe UI",Helvetica,Arial,sans-serif;
+  --body:"Manrope","Segoe UI",Helvetica,Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--hy-night);color:var(--ink);font-family:var(--body);overflow:hidden;cursor:none}
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;background:var(--hy-blue);overflow:hidden;transform-origin:50% 50%}
+#stage::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(1200px 700px at 78% 30%,rgba(0,170,210,.22),transparent 65%),
+  radial-gradient(900px 600px at 10% 100%,rgba(0,23,47,.9),transparent 70%),
+  linear-gradient(160deg,var(--hy-blue) 0%,var(--hy-deep) 100%)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:120px 120px;-webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,.9),transparent 80%);mask-image:linear-gradient(to bottom,rgba(0,0,0,.9),transparent 80%)}
+
+/* ── Chrome ── */
+.chrome{position:absolute;left:0;right:0;z-index:5;display:flex;align-items:center;padding:0 80px;font-family:var(--display)}
+.chrome.top{top:0;height:110px;justify-content:space-between}
+.brand{display:flex;align-items:baseline;gap:18px;letter-spacing:.32em;text-transform:uppercase;font-weight:700;font-size:26px}
+.brand small{font-family:var(--body);font-weight:600;font-size:18px;letter-spacing:.18em;color:var(--ink-3)}
+.clock{font-weight:300;font-size:40px;font-variant-numeric:tabular-nums;display:flex;gap:22px;align-items:baseline}
+.clock .date{font-size:20px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.ticker{position:absolute;left:0;right:0;bottom:0;height:78px;background:rgba(0,12,26,.78);display:flex;align-items:center;z-index:6;border-top:1px solid rgba(255,255,255,.08)}
+.ticker .label{flex:none;height:100%;display:flex;align-items:center;padding:0 34px 0 80px;background:var(--hy-sky);color:var(--hy-night);font-family:var(--display);font-weight:700;letter-spacing:.24em;font-size:20px;text-transform:uppercase}
+.ticker .track{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
+.ticker .run{display:flex;gap:96px;white-space:nowrap;font-size:26px;font-weight:600;color:var(--ink-2);padding-left:100%;animation:ticker var(--ticker-speed,60s) linear infinite;will-change:transform}
+.ticker .run b{color:var(--hy-sky-soft);font-weight:800;margin-right:14px}
+@keyframes ticker{to{transform:translateX(-100%)}}
+.progress{position:absolute;left:0;bottom:78px;height:6px;background:var(--hy-sky);width:100%;transform-origin:0 50%;transform:scaleX(0);z-index:7}
+.section{position:absolute;right:80px;bottom:100px;z-index:7;font-family:var(--display);font-size:18px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
+
+/* ── Slides ── */
+#slides{position:absolute;inset:0}
+.slide{position:absolute;inset:110px 0 78px;padding:0 80px;opacity:0;transition:opacity .9s ease;display:grid}
+.slide.on{opacity:1}
+.slide .in{transform:translateY(22px);opacity:0;transition:transform .9s cubic-bezier(.2,.7,.2,1),opacity .9s}
+.slide.on .in{transform:none;opacity:1}
+.slide.on .in:nth-child(2){transition-delay:.15s}.slide.on .in:nth-child(3){transition-delay:.3s}.slide.on .in:nth-child(4){transition-delay:.45s}.slide.on .in:nth-child(5){transition-delay:.6s}
+.eyebrow{font-family:var(--display);font-weight:500;letter-spacing:.3em;text-transform:uppercase;font-size:22px;color:var(--hy-sky-soft);display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.eyebrow .code{color:var(--ink-3);letter-spacing:.14em;font-family:var(--body);font-weight:600;font-size:20px;padding:6px 14px;border:1px solid rgba(255,255,255,.18);border-radius:4px}
+.pill{color:var(--hy-night);background:var(--hy-sand);border-radius:4px;padding:6px 14px;font-size:18px;letter-spacing:.18em;font-family:var(--display);font-weight:500;text-transform:uppercase}
+.pill.hev,.pill.phev,.pill.mhev{background:var(--hy-hev)}.pill.ev{background:var(--hy-sky)}.pill.n{background:var(--hy-n);color:#fff}
+
+/* Light "studio" panel for the Service Guide photos — white backgrounds melt into it */
+.panel{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(180deg,#FBFAF8 0%,#ECE6DF 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 30px 60px -30px rgba(0,8,20,.7)}
+.panel img{mix-blend-mode:multiply;max-width:90%;max-height:86%;object-fit:contain;display:block}
+.panel.photo img{mix-blend-mode:normal;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover}
+
+/* ── showroom model slide (from the first loop) ── */
+.model{grid-template-columns:1.1fr .9fr;column-gap:60px;align-items:center}
+.model .left{display:flex;flex-direction:column;height:100%;min-height:0}
+.model h1{font-family:var(--display);font-weight:700;font-size:118px;line-height:.92;margin:20px 0 16px;letter-spacing:-.02em}
+.model .lede{font-size:30px;line-height:1.35;max-width:32ch;color:var(--ink-2);margin:0}
+.model .right{display:flex;flex-direction:column;gap:18px;justify-content:center;height:100%;padding-block:20px}
+.stat{display:flex;align-items:baseline;gap:22px;border-bottom:1px solid rgba(255,255,255,.14);padding-bottom:22px;margin-bottom:6px}
+.stat .v{font-family:var(--display);font-weight:700;font-size:118px;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--hy-light)}
+.stat .u{font-family:var(--display);font-weight:300;font-size:48px;color:var(--hy-sky-soft)}
+.stat .l{font-size:24px;color:var(--ink-3);max-width:16ch;line-height:1.25;margin-left:auto;text-align:right}
+.pt{display:grid;grid-template-columns:104px 1fr;column-gap:18px;align-items:start}
+.pt .k{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.16em;color:var(--hy-sky);padding-top:10px;text-transform:uppercase}
+.pt .h{font-family:var(--display);font-weight:500;font-size:35px;line-height:1.15;color:var(--hy-light)}
+.pt .d{font-size:22px;line-height:1.4;color:var(--ink-3);margin-top:6px;max-width:44ch}
+.car{flex:1;min-height:0;position:relative;display:flex;align-items:flex-end;justify-content:center;padding:30px 0 56px}
+.car img{width:100%;height:100%;object-fit:contain;object-position:center bottom;position:relative;z-index:1;filter:drop-shadow(0 30px 28px rgba(0,8,20,.55));transform:translateX(-40px);opacity:0;transition:transform 1.2s cubic-bezier(.2,.7,.2,1) .25s,opacity 1s .25s}
+.slide.on .car img{transform:none;opacity:1}
+.car::after{content:"";position:absolute;left:8%;right:8%;bottom:26px;height:70px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(0,170,210,.35),rgba(0,12,26,.5) 45%,transparent 72%);filter:blur(10px)}
+.n-glow{position:absolute;right:-200px;top:-100px;width:900px;height:900px;border-radius:50%;background:radial-gradient(circle,rgba(230,51,18,.35),transparent 60%);pointer-events:none}
+.flag{display:inline-block;margin-left:0;font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.2em;text-transform:uppercase;color:var(--hy-night);background:var(--hy-sky);padding:6px 14px;border-radius:4px}
+
+/* ── tip / closing ── */
+.tip{grid-template-columns:1fr;align-content:center;justify-items:start;max-width:1500px}
+.tip h2{font-family:var(--display);font-weight:700;font-size:104px;line-height:1;letter-spacing:-.02em;margin:24px 0 30px;max-width:15ch}
+.tip p{font-size:38px;line-height:1.4;color:var(--ink-2);margin:30px 0 0;max-width:34ch}
+.foot{margin-top:40px;font-family:var(--display);font-weight:500;font-size:24px;letter-spacing:.2em;text-transform:uppercase;color:var(--hy-sky-soft)}
+.mark{width:120px;height:8px;background:var(--hy-gold);border-radius:2px}
+
+/* ── explainer ── */
+.explain{grid-template-columns:1.32fr .68fr;column-gap:100px;align-items:center}
+.explain h2{font-family:var(--display);font-weight:700;font-size:96px;line-height:1;letter-spacing:-.02em;margin:24px 0 0;max-width:15ch}
+.explain p{font-size:34px;line-height:1.45;color:var(--ink-2);margin:30px 0 0;max-width:40ch}
+.bigstat{border-left:4px solid var(--hy-sky);padding:10px 0 10px 54px}
+.bigstat .n{font-family:var(--display);font-weight:700;font-size:200px;line-height:.9;letter-spacing:-.04em;color:var(--hy-light);font-variant-numeric:tabular-nums}
+.bigstat .l{font-size:30px;line-height:1.35;color:var(--ink-2);margin-top:24px;max-width:18ch}
+.bigstat .src{margin-top:26px;font-family:var(--display);font-size:18px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-3)}
+
+/* ── welcome / numbers ── */
+.welcome{grid-template-columns:1fr;align-content:center}
+.welcome h1{font-family:var(--display);font-weight:300;font-size:120px;line-height:1;margin:24px 0 20px;letter-spacing:-.02em}
+.welcome h1 b{font-weight:700;display:block}
+.welcome p{font-size:36px;color:var(--ink-2);max-width:44ch;line-height:1.4;margin:0}
+.facts{display:flex;gap:80px;margin-top:70px}
+.facts .v{font-family:var(--display);font-size:72px;font-weight:700;line-height:1}
+.facts .l{font-family:var(--display);font-size:20px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin-top:12px;max-width:16ch;line-height:1.4}
+.numbers{grid-template-columns:1fr;align-content:center}
+.numbers h2{font-family:var(--display);font-weight:700;font-size:104px;line-height:1;letter-spacing:-.02em;margin:24px 0 0}
+.numbers .facts{display:grid;grid-template-columns:repeat(4,1fr);gap:50px;margin-top:80px}
+.numbers .facts > div{border-top:3px solid var(--hy-sky);padding-top:30px}
+.numbers .facts .v{font-size:120px;letter-spacing:-.03em}
+.numbers .facts .l{max-width:22ch}
+
+/* ── Know your Hyundai: model card ── */
+.card{grid-template-columns:1.08fr .92fr;column-gap:70px;padding-top:26px;padding-bottom:30px}
+.card .left{display:flex;flex-direction:column;min-height:0}
+.card h1{font-family:var(--display);font-weight:700;font-size:112px;line-height:.92;margin:22px 0 0;letter-spacing:-.02em}
+.card h1 span{display:block;font-weight:300;font-size:44px;letter-spacing:0;color:var(--ink-2);margin-top:16px;line-height:1.1}
+.card .shown{margin-top:22px;font-family:var(--display);font-weight:500;font-size:26px;color:var(--hy-sky-soft);display:flex;gap:14px;align-items:center}
+.card .shown i{width:12px;height:12px;border-radius:50%;background:var(--hy-sky);box-shadow:0 0 0 6px rgba(0,170,210,.25)}
+.card .panel{flex:1;min-height:0;margin-top:34px}
+.card .right{display:flex;flex-direction:column;justify-content:center;min-height:0}
+.card .stat .v{font-size:110px}
+.pth{font-family:var(--display);font-weight:500;font-size:20px;letter-spacing:.3em;text-transform:uppercase;color:var(--hy-sky-soft);margin:16px 0 8px}
+.ptl{display:grid;gap:0}
+.eng{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);column-gap:24px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+.eng .en{font-family:var(--display);font-weight:500;font-size:34px;line-height:1.15;color:var(--hy-light)}
+.eng .tr{display:flex;flex-wrap:wrap;gap:8px 10px}
+.eng .tr span{font-size:21px;font-weight:600;color:var(--ink-2);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 14px;white-space:nowrap}
+.card.dense .eng{padding:11px 0}.card.dense .eng .en{font-size:29px}.card.dense .eng .tr span{font-size:19px;padding:4px 12px}
+
+/* ── Service schedule ladder ── */
+.sched{grid-template-rows:auto 1fr auto;padding-top:24px;padding-bottom:26px;row-gap:10px}
+.sh{display:flex;justify-content:space-between;align-items:flex-end;gap:40px}
+.sh h2{font-family:var(--display);font-weight:700;font-size:88px;line-height:.95;margin:16px 0 0;letter-spacing:-.02em}
+.sh h2 span{font-weight:300;font-size:40px;color:var(--ink-2);margin-left:22px;letter-spacing:0}
+.sh .panel{width:390px;height:190px;flex:none;border-radius:14px}
+.ladder{position:relative;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));column-gap:26px;align-content:start;padding-top:26px}
+.ladder .track{position:absolute;left:0;right:0;top:39px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--hy-sky),rgba(0,170,210,.12))}
+.col .node{width:30px;height:30px;border-radius:50%;background:var(--hy-deep);border:5px solid var(--hy-sky);position:relative;z-index:1}
+.col.far .node{border-color:var(--hy-gold)}
+.col .every{margin-top:18px;font-family:var(--display);font-size:17px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
+.col .km{font-family:var(--display);font-weight:700;font-size:56px;line-height:1;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.col .km small{font-weight:300;font-size:24px;color:var(--hy-sky-soft);margin-left:6px;letter-spacing:0}
+.col ul{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:15px}
+.col li{position:relative;padding-left:30px;font-size:26px;line-height:1.22;color:var(--ink)}
+.col li::before{content:"";position:absolute;left:0;top:9px;width:13px;height:13px;background:var(--hy-sky);border-radius:2px}
+.col li.inspect::before{background:none;border:3px solid var(--hy-sand);border-radius:50%;width:15px;height:15px;top:8px}
+.col li.service::before{background:var(--hy-gold);transform:rotate(45deg);width:12px;height:12px;top:10px;left:1px}
+.col li small{display:block;font-size:17px;color:var(--ink-3);margin-top:3px;line-height:1.3}
+.ladder.tight .col li{font-size:23px}.ladder.tight .col .km{font-size:48px}
+.ladder.tight .col ul{gap:11px}
+.legend{display:flex;gap:40px;align-items:center;font-size:21px;color:var(--ink-3);border-top:1px solid rgba(255,255,255,.12);padding-top:18px}
+.legend span{display:flex;align-items:center;gap:12px}
+.legend i{display:inline-block;width:13px;height:13px;background:var(--hy-sky);border-radius:2px}
+.legend i.inspect{background:none;border:3px solid var(--hy-sand);border-radius:50%;width:15px;height:15px}
+.legend i.service{background:var(--hy-gold);transform:rotate(45deg);width:12px;height:12px}
+.legend .rule{margin-left:auto;color:var(--ink-2)}
+.legend .rule b{color:var(--hy-sky-soft);font-weight:800}
+
+/* ── Family: which one do you drive? ── */
+.family{grid-template-rows:auto 1fr;padding-top:34px;padding-bottom:34px}
+.family h2{font-family:var(--display);font-weight:700;font-size:96px;line-height:1;letter-spacing:-.02em;margin:20px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(var(--c),minmax(0,1fr));gap:30px 28px;margin-top:40px;align-content:start}
+.tile .panel{height:var(--h);border-radius:14px}
+.tile .meta{display:flex;align-items:baseline;gap:14px;margin-top:16px;flex-wrap:wrap}
+.tile .meta b{font-family:var(--display);font-weight:700;font-size:32px}
+.tile .meta span{font-size:21px;color:var(--ink-3)}
+.tile .meta em{font-style:normal;font-family:var(--display);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--hy-night);background:var(--hy-hev);padding:3px 9px;border-radius:3px}
+.tile .meta em.ev{background:var(--hy-sky)}
+.tile .meta em.now{background:var(--hy-sand)}
+.slide.on .tile{transition-delay:calc(.25s + var(--d)*.08s)}
+
+/* ── Upgrade ── */
+.upgrade{grid-template-rows:auto 1fr auto;padding-top:30px;padding-bottom:36px}
+.upgrade h2{font-family:var(--display);font-weight:700;font-size:84px;line-height:1;letter-spacing:-.02em;margin:20px 0 0;max-width:22ch}
+.uprow{display:grid;grid-template-columns:.72fr 110px 1.28fr;align-items:center;column-gap:30px;min-height:0}
+.uprow .old .panel{height:270px}
+.uprow .old .cap,.uprow .new .cap{font-family:var(--display);font-size:24px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-top:16px}
+.uprow .new .cap{color:var(--hy-sky-soft);text-align:center}
+.uprow .arrow{height:6px;background:linear-gradient(90deg,rgba(0,170,210,.2),var(--hy-sky));position:relative}
+.uprow .arrow::after{content:"";position:absolute;right:-6px;top:-15px;border:18px solid transparent;border-left:26px solid var(--hy-sky);border-right:0}
+.uprow .new .car{height:400px;padding:0 0 40px}
+.uppts{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}
+.uppts .pt{grid-template-columns:1fr;row-gap:4px;align-content:start;border-top:3px solid var(--hy-sky);padding-top:18px}
+.uppts .pt .k{padding-top:0}
+.uppts .pt .h{font-size:32px}
+
+#paused,#info{position:absolute;z-index:9;background:rgba(0,12,26,.88);border:1px solid rgba(255,255,255,.15);font-family:var(--display);display:none}
+#paused{left:50%;top:50%;transform:translate(-50%,-50%);padding:24px 48px;font-size:32px;letter-spacing:.3em;text-transform:uppercase}
+#info{left:80px;top:120px;padding:14px 22px;font-size:22px;letter-spacing:.06em;color:var(--ink-2)}
+#paused.on,#info.on{display:block}
+
+/* still mode: used to render the USB video — everything already in place */
+body.still .slide,body.still .slide .in,body.still .car img,body.still .tile{transition:none!important}
+body.still .ticker .run{animation:none;padding-left:0}
+body.still .clock,body.still .progress,body.still .section{display:none}
+@media (prefers-reduced-motion:reduce){.slide,.slide .in{transition:opacity .3s}.ticker .run{animation:none;padding-left:0}}
+</style>
+<div id="stage">
+  <div class="grid"></div>
+  <header class="chrome top">
+    <div class="brand" id="brand"></div>
+    <div class="clock"><span class="date" id="date"></span><span id="time">--:--</span></div>
+  </header>
+  <div id="slides"></div>
+  <div class="progress" id="bar"></div>
+  <footer class="ticker"><div class="label" id="tickerLabel"></div><div class="track"><div class="run" id="run"></div></div></footer>
+  <div id="paused">Paused — press space</div>
+  <div id="info"></div>
+</div>
+
+<script src="content.js" charset="utf-8"></script>
+<script src="models.js" charset="utf-8"></script>
+<script>
+(function(){
+const L = window.LOOP, MODELS = window.MODELS;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = n => Number(n).toLocaleString('en-US');
+const secs = k => Math.max(5, Math.round((L.TIMING[k] || 12) * (L.PACE || 1)));
+const byTitle = t => MODELS.find(m => m.title === t);
+const FUEL = { petrol:["Petrol",""], mhev:["Petrol · Mild hybrid","mhev"], hev:["Hybrid","hev"], phev:["Hybrid · Plug-in","phev"], ev:["Electric","ev"] };
+const imgSrc = m => 'img/' + m.img + '.jpg';
+const panel = (m, extra) => `<div class="panel ${m.photo?'photo':''} ${extra||''}"><img src="${imgSrc(m)}" alt="${esc(m.name+' '+m.code)}"></div>`;
+const oilKm = m => (m.service.find(s => s.item === 'Engine oil & filter' && s.act === 'replace') || {}).km;
+
+/* ── data-backed numbers for the explainers ── */
+function countStat(st){
+  if (st.match) return MODELS.filter(m => m.powertrains.some(p => st.match.test(p.engine))).length;
+  if (st.trans) return MODELS.filter(m => m.powertrains.some(p => p.trans.some(t => st.trans.test(t)))).length;
+  if (st.fuel) return MODELS.filter(m => st.fuel.includes(m.fuel)).length;
+  if (st.evItems) return byTitle('Ioniq 5 NE (Facelift)').service.length;
+  return '';
+}
+function statLabel(st){
+  return st.evItems ? st.label.replace('{m}', byTitle('Tucson NX4 (Petrol & Mild Hybrid)').service.length) : st.label;
+}
+
+/* ── Renderers ── */
+const R = {
+  welcome(s){
+    const w = L.welcome;
+    return `<section class="slide welcome">
+      <div class="eyebrow in">${esc(L.dealer)} · ${esc(L.tagline)}</div>
+      <h1 class="in">${esc(w.hello)}<b>${esc(w.big)}</b></h1><p class="in">${esc(w.text)}</p>
+      <div class="facts in">${w.facts.map(([v,l]) => `<div><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div></section>`;
+  },
+  numbers(){
+    const years = MODELS.map(m => parseInt(m.years)).filter(Boolean);
+    const first = Math.min.apply(null, years);
+    const engines = new Set(MODELS.flatMap(m => m.fuel === 'ev' ? [] : m.powertrains.map(p => p.engine.replace(/\s*\(.*?\)/g,'').replace(/L\b/,'').trim())));
+    const elec = MODELS.filter(m => m.fuel !== 'petrol').length;
+    const fams = new Set(MODELS.map(m => m.family)).size;
+    const facts = [[MODELS.length, "Hyundai generations in our Service Guide"],[fams, "model families, from city cars to Genesis"],[first, "the oldest model year in our guide"],[elec, "hybrid & electric generations"]];
+    return `<section class="slide numbers">
+      <div class="eyebrow in">Hyundai Service Guide · by the numbers</div>
+      <h2 class="in">Every Hyundai has a schedule.<br>We know them all.</h2>
+      <div class="facts in">${facts.map(([v,l]) => `<div><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div></section>`;
+  },
+  model(s){
+    const pill = s.pill ? `<span class="pill ${s.pillClass||''}">${esc(s.pill)}</span>` : '';
+    return `<section class="slide model">${s.nglow?'<div class="n-glow"></div>':''}
+      <div class="left">
+        <div class="eyebrow in"><span class="flag">In our showroom</span>${esc(s.tag)}<span class="code">${esc(s.code)}</span>${pill}</div>
+        <h1 class="in">${esc(s.name)}</h1>
+        <p class="lede in">${esc(s.lede)}</p>
+        <div class="car"><img src="img/show/${esc(s.image)}.png" alt="${esc(s.name)}"></div>
+      </div>
+      <div class="right">
+        <div class="stat in"><span class="v">${esc(s.stat.v)}</span><span class="u">${esc(s.stat.u)}</span><span class="l">${esc(s.stat.l)}</span></div>
+        ${s.points.map(([k,h,d]) => `<div class="pt in"><div class="k">${esc(k)}</div><div><div class="h">${esc(h)}</div><div class="d">${esc(d)}</div></div></div>`).join('')}
+      </div></section>`;
+  },
+  tip(s){
+    return `<section class="slide tip">
+      <div class="eyebrow in">${esc(s.eyebrow)}</div><h2 class="in">${esc(s.head)}</h2>
+      <div class="in"><div class="mark"></div><p>${esc(s.text)}</p>${s.foot?`<div class="foot">${esc(s.foot)}</div>`:''}</div></section>`;
+  },
+  explain(s){
+    const n = s.stat ? countStat(s.stat) : s.big;
+    const l = s.stat ? statLabel(s.stat) : s.bigLabel;
+    return `<section class="slide explain">
+      <div><div class="eyebrow in">${esc(s.eyebrow)}</div><h2 class="in">${esc(s.head)}</h2>
+        <p class="in">${esc(s.text)}</p></div>
+      <div class="bigstat in"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div>${s.stat?'<div class="src">From our Service Guide</div>':''}</div></section>`;
+  },
+  card(s){
+    const m = s.m, [fl, fc] = FUEL[m.fuel], ev = m.fuel === 'ev';
+    const oil = oilKm(m);
+    const stat = ev
+      ? {v:fmt(m.rule ? m.rule.km : 15000), u:"km", l:`service interval — or ${m.rule?m.rule.months:12} months. No engine oil.`}
+      : {v:fmt(oil), u:"km", l:"engine oil & filter interval"};
+    const rows = m.powertrains;
+    const dense = rows.length >= 4 || rows.reduce((a,p) => a + p.trans.length, 0) > 7;
+    return `<section class="slide card ${dense?'dense':''}">
+      <div class="left">
+        <div class="eyebrow in">Know your Hyundai<span class="code">${esc(m.code)}</span><span class="pill ${fc}">${esc(fl)}</span></div>
+        <h1 class="in">${esc(m.name)}<span>${esc(m.years)}${m.facelift?' · Facelift':''}</span></h1>
+        ${m.showroom ? `<div class="shown in"><i></i>${esc(m.showroom)}</div>` : ''}
+        ${panel(m,'in')}
+      </div>
+      <div class="right">
+        <div class="stat in"><span class="v">${esc(stat.v)}</span><span class="u">${esc(stat.u)}</span><span class="l">${esc(stat.l)}</span></div>
+        <div class="pth in">${ev ? 'Battery & motor options' : 'Powertrain options'}</div>
+        <div class="ptl in">${rows.map(p => `<div class="eng"><div class="en">${esc(p.engine)}</div><div class="tr">${p.trans.map(t => `<span>${esc(t)}</span>`).join('')}</div></div>`).join('')}</div>
+      </div></section>`;
+  },
+  service(s){
+    const m = s.m, [fl, fc] = FUEL[m.fuel];
+    const kms = [...new Set(m.service.map(x => x.km))].sort((a,b) => a-b);
+    const n = kms.length, most = Math.max.apply(null, kms.map(k => m.service.filter(x => x.km === k).length));
+    const rule = m.rule || {km:10000, months:6};
+    const cols = kms.map((k,i) => {
+      const items = m.service.filter(x => x.km === k);
+      const far = k > 60000;
+      return `<div class="col in ${far?'far':''}" style="transition-delay:${(.35 + i*.14).toFixed(2)}s">
+        <div class="node"></div><div class="every">${far?'At':'Every'}</div>
+        <div class="km">${fmt(k)}<small>km</small></div>
+        <ul>${items.map(x => `<li class="${x.act}">${esc(x.item)}${x.note?`<small>${esc(x.note)}</small>`:''}</li>`).join('')}</ul></div>`;
+    }).join('');
+    return `<section class="slide sched">
+      <header class="sh">
+        <div><div class="eyebrow in">Service schedule<span class="code">${esc(m.code)}</span><span class="pill ${fc}">${esc(fl)}</span></div>
+          <h2 class="in">${esc(m.name)}<span>${esc(m.years)}${m.facelift?' · Facelift':''}</span></h2></div>
+        ${panel(m,'in')}
+      </header>
+      <div class="ladder ${most>=7||n>=7?'tight':''}" style="--n:${Math.max(n,4)}"><div class="track"></div>${cols}</div>
+      <footer class="legend in"><span><i></i>Replace</span><span><i class="inspect"></i>Inspect</span><span><i class="service"></i>Service</span>
+        <span class="rule">Every <b>${fmt(rule.km)} km</b> counts as <b>${rule.months} months</b> — whichever comes first</span></footer>
+    </section>`;
+  },
+  family(s){
+    const ms = s.models, n = ms.length;
+    const c = n <= 4 ? n : n <= 6 ? 3 : n <= 8 ? 4 : 5;
+    const rowsN = Math.ceil(n / c), h = rowsN === 1 ? 360 : 230;
+    return `<section class="slide family">
+      <div><div class="eyebrow in">Which one do you drive?</div>
+        <h2 class="in">The ${esc(s.name)} family</h2></div>
+      <div class="tiles" style="--c:${c};--h:${h}px">${ms.map((m,i) => {
+        const tag = m.showroom ? '<em class="now">In showroom</em>' : m.fuel==='ev' ? '<em class="ev">Electric</em>' : (m.fuel!=='petrol' ? '<em>Hybrid</em>' : '');
+        return `<div class="tile in" style="--d:${i}">${panel(m)}
+          <div class="meta"><b>${esc((m.name.replace(s.name,'').replace(/Hybrid|Electric/,'').trim() + ' ' + m.code).trim())}</b><span>${esc(m.years)}${m.facelift?' · FL':''}</span>${tag}</div></div>`;
+      }).join('')}</div></section>`;
+  },
+  upgrade(s){
+    const u = s.u, from = byTitle(u.from);
+    const head = u.head || `From ${from.name} ${from.code} to today's ${u.toName}`;
+    return `<section class="slide upgrade">
+      <div><div class="eyebrow in">Time for an upgrade?<span class="code">Ask about trade-in</span></div><h2 class="in">${esc(head)}</h2></div>
+      <div class="uprow in">
+        <div class="old">${panel(from)}<div class="cap">Your ${esc(from.name)} · ${esc(from.years)}</div></div>
+        <div class="arrow"></div>
+        <div class="new"><div class="car"><img src="img/show/${esc(u.to)}.png" alt="${esc(u.toName)}"></div><div class="cap">${esc(u.toName)} ${esc(u.toCode)} · in our showroom now</div></div>
+      </div>
+      <div class="uppts in">${u.points.map(([k,h,d]) => `<div class="pt"><div class="k">${esc(k)}</div><div class="h">${esc(h)}</div><div class="d">${esc(d)}</div></div>`).join('')}</div>
+    </section>`;
+  }
+};
+
+/* ── Build the play order ──
+   Service Guide family by family; a break (one showroom model + explainers/tips)
+   every BREAK_EVERY seconds; an upgrade slide at the end of each family. */
+function buildPlaylist(){
+  const fams = [];
+  MODELS.forEach(m => { let f = fams.find(x => x.name === m.family); if (!f) fams.push(f = {name:m.family, models:[]}); f.models.push(m); });
+  // mix explainers and tips: two explainers, then a tip
+  const mixed = []; let e = 0, t = 0;
+  while (e < L.explain.length || t < L.tips.length) {
+    if (e < L.explain.length) mixed.push({type:'explain', ...L.explain[e++]});
+    if (e < L.explain.length) mixed.push({type:'explain', ...L.explain[e++]});
+    if (t < L.tips.length) mixed.push({type:'tip', ...L.tips[t++]});
+  }
+  function run(perBreak){
+    const list = []; let since = 0, si = 0, mi = 0, breaks = 0;
+    const push = (s, section) => { s.seconds = secs(s.type === 'model' ? 'model' : s.type); s.section = section; list.push(s); since += s.seconds; };
+    const brk = () => {
+      breaks++;
+      if (breaks % 8 === 0) push({type:'welcome'}, 'Welcome');
+      push({type:'model', ...L.showroom[si++ % L.showroom.length]}, 'In our showroom');
+      for (let k = 0; k < perBreak; k++) push({...mixed[mi++ % mixed.length]}, 'Good to know');
+      since = 0;
+    };
+    push({type:'welcome'}, 'Welcome'); push({type:'numbers'}, 'Service Guide');
+    fams.forEach(f => {
+      const sec = 'Service Guide · ' + f.name;
+      if (f.models.length >= 3) push({type:'family', name:f.name, models:f.models}, sec);
+      f.models.forEach(m => {
+        push({type:'card', m}, sec); push({type:'service', m}, sec);
+        if (since >= L.BREAK_EVERY) brk();
+      });
+      const u = L.upgrades.find(x => x.family === f.name);
+      if (u) push({type:'upgrade', u}, 'Time for an upgrade?');
+    });
+    brk();
+    push({type:'tip', ...L.closing}, 'Thank you');
+    return {list, breaks, used: mi};
+  }
+  let r = run(2);
+  const per = Math.max(2, Math.ceil(mixed.length / r.breaks));
+  if (per !== 2) r = run(per);
+  return r.list;
+}
+
+const PLAY = buildPlaylist();
+const TOTAL = PLAY.reduce((a,s) => a + s.seconds, 0);
+window.__PLAYLIST = PLAY.map((s,i) => ({i, type:s.type, seconds:s.seconds, section:s.section}));
+window.__TOTAL = TOTAL;
+
+/* ── Chrome ── */
+$('#brand').innerHTML = `${esc(L.dealer)} <small>${esc(L.tagline)}</small>`;
+$('#tickerLabel').textContent = L.tickerLabel;
+$('#run').innerHTML = L.ticker.map(([d,t]) => `<span><b>${esc(d)}</b>${esc(t)}</span>`).join('');
+$('#run').style.setProperty('--ticker-speed', (L.tickerSeconds||80)+'s');
+
+function fit(){
+  const s = Math.min(innerWidth/1920, innerHeight/1080);
+  $('#stage').style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+function clock(){
+  const d = new Date();
+  $('#time').textContent = d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  $('#date').textContent = d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+}
+function build(n){ const w = document.createElement('div'); w.innerHTML = R[PLAY[n].type](PLAY[n]); return w.firstElementChild; }
+
+/* ── Player: only the current and the next slide exist in the page (TV-friendly memory) ── */
+const host = $('#slides'), bar = $('#bar');
+let idx = -1, cur = null, nxt = null, nxtIdx = -1, timer = null, paused = false, t0 = 0, remain = 0, raf = 0, played = 0;
+function show(n){
+  idx = (n + PLAY.length) % PLAY.length;
+  if (idx === 0 && played > 0 && L.reloadEachLoop && navigator.onLine) { location.reload(); return; }
+  played++;
+  const el = (nxt && nxtIdx === idx) ? nxt : build(idx);
+  host.appendChild(el); void el.offsetWidth;
+  requestAnimationFrame(() => el.classList.add('on'));
+  if (cur) { const old = cur; old.classList.remove('on'); setTimeout(() => old.remove(), 1000); }
+  cur = el;
+  nxtIdx = (idx + 1) % PLAY.length; nxt = build(nxtIdx);          // pre-builds and preloads the next slide's photo
+  info();
+  const ms = PLAY[idx].seconds * 1000;
+  clearTimeout(timer); cancelAnimationFrame(raf);
+  t0 = performance.now(); remain = ms;
+  timer = setTimeout(() => show(idx + 1), ms);
+  tick(ms);
+}
+function tick(total){
+  const step = () => { const p = Math.min(1, (performance.now() - t0) / total); bar.style.transform = `scaleX(${p})`; if (!paused && p < 1) raf = requestAnimationFrame(step); };
+  step();
+}
+function togglePause(){
+  paused = !paused; $('#paused').classList.toggle('on', paused);
+  const total = PLAY[idx].seconds * 1000;
+  if (paused) { clearTimeout(timer); cancelAnimationFrame(raf); remain = total - (performance.now() - t0); }
+  else { t0 = performance.now() - (total - remain); timer = setTimeout(() => show(idx + 1), remain); tick(total); }
+}
+const hms = s => `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+function info(){
+  const at = PLAY.slice(0, idx).reduce((a,s) => a + s.seconds, 0);
+  $('#info').textContent = `Slide ${idx+1} / ${PLAY.length} · ${PLAY[idx].type} · ${hms(at)} of ${hms(TOTAL)}`;
+}
+async function wake(){ try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){} }
+
+addEventListener('resize', fit);
+addEventListener('keydown', e => {
+  const k = e.key;
+  if (k === ' ' || k === 'Enter' || k === 'MediaPlayPause') { e.preventDefault(); togglePause(); }
+  else if (k === 'ArrowRight') show(idx + 1);
+  else if (k === 'ArrowLeft') show(idx - 1);
+  else if (k === 'f' || k === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); }
+  else if (k === 'i' || k === 'I') $('#info').classList.toggle('on');
+});
+addEventListener('click', () => { if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); wake(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+
+fit(); clock(); setInterval(clock, 10000);
+const q = new URLSearchParams(location.search);
+if (q.has('still')) {                       // render one finished frame (used to make the USB video)
+  document.body.classList.add('still');
+  const n = +q.get('still'); idx = n;
+  const el = build(n); el.classList.add('on'); host.appendChild(el);
+  $('#run').innerHTML = `<span><b>${esc(L.dealer)}</b>${esc(L.tagline)} · Authorised Hyundai sales & service</span>`;
+} else {
+  show(q.has('at') ? (+q.get('at') - 1) : 0); wake();
+}
+})();
+</script>
+</body></html>
