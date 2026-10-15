@@ -35,7 +35,7 @@ window.LOOP = {
   welcome: {
     hello:"Welcome to Hyundai Lebanon.", big:"Your Hyundai is in expert hands.",
     text:"Century Motor Company — the official Hyundai distributor in Lebanon. While you wait: every Hyundai we service, what's under the bonnet, and when it needs us — plus what's new in our showroom.",
-    facts:[["83","Hyundai generations we service"],["11","models on sale"],["7","hybrid or electric options"],["100%","genuine Hyundai parts"]]
+    facts:[["{models}","Hyundai generations we service"],["11","models on sale"],["7","hybrid or electric options"],["100%","genuine Hyundai parts"]]
   },
 
   closing: { eyebrow:"Thank you", head:"Questions about any model?",
@@ -175,7 +175,7 @@ window.LOOP = {
       stat:{trans:/IVT|CVT/, label:"generations in our guide offer an IVT or CVT"} },
     { eyebrow:"Gearboxes", head:"AMT: a manual that shifts itself.",
       text:"An automated manual uses a normal manual gearbox with an electric actuator working the clutch and gears. Simple and economical. Tip: lift off the accelerator slightly as it changes gear and the shift becomes much smoother.",
-      stat:{trans:/AMT/, label:"generations in our guide offer a 5-speed AMT"} },
+      stat:null, big:"5", bigLabel:"gears in the Grand i10's automated manual" },
     { eyebrow:"Gearboxes", head:"Electric cars: one gear.",
       text:"An electric motor pulls strongly from zero to its top speed, so an EV needs only a single reduction gear instead of a gearbox. One less thing to wear out — its oil is simply renewed every 60,000 km.",
       stat:null, big:"1", bigLabel:"gear in an IONIQ 5" },
@@ -290,7 +290,7 @@ window.LOOP = {
       points:[["Comfort","Panoramic sunroof & ventilated seats","Features from the class above."],
               ["Safety","Level 2 driver assistance","Adaptive cruise and lane keeping."],
               ["Choice","IVT or 7-speed DCT","Smooth automatic choices for every driver."]] },
-    { family:"i10", from:"Grand i10 BA", to:"grandi10", toName:"Grand i10", toCode:"AI3",
+    { family:"Grand i10", from:"Grand i10 BA", to:"grandi10", toName:"Grand i10", toCode:"AI3",
       points:[["Value","Lowest cost of ownership","A proven 1.2-litre engine and affordable genuine parts."],
               ["Space","260-litre boot","Room for four adults and the weekly shop."],
               ["City","Turns in under 5 metres","Parks where SUVs can't."]] },

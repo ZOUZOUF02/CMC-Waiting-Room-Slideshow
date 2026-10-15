@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Hyundai Waiting Room Loop</title>
 <style>
 @font-face{font-family:"Outfit";font-weight:300;src:url(fonts/outfit-latin-300-normal.woff2) format("woff2")}
@@ -58,7 +58,7 @@ html,body{height:100%;margin:0;background:var(--hy-night);color:var(--ink);font-
 
 /* Light "studio" panel for the Service Guide photos — white backgrounds melt into it */
 .panel{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(180deg,#FBFAF8 0%,#ECE6DF 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 30px 60px -30px rgba(0,8,20,.7)}
-.panel img{mix-blend-mode:multiply;max-width:90%;max-height:86%;object-fit:contain;display:block}
+.panel img{mix-blend-mode:multiply;width:100%;height:100%;max-width:90%;max-height:86%;object-fit:contain;display:block}
 .panel.photo img{mix-blend-mode:normal;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover}
 
 /* ── showroom model slide (from the first loop) ── */
@@ -224,7 +224,16 @@ const secs = k => Math.max(5, Math.round((L.TIMING[k] || 12) * (L.PACE || 1)));
 const byTitle = t => MODELS.find(m => m.title === t);
 const FUEL = { petrol:["Petrol",""], mhev:["Petrol · Mild hybrid","mhev"], hev:["Hybrid","hev"], phev:["Hybrid · Plug-in","phev"], ev:["Electric","ev"] };
 const imgSrc = m => 'img/' + m.img + '.jpg';
-const panel = (m, extra) => `<div class="panel ${m.photo?'photo':''} ${extra||''}"><img src="${imgSrc(m)}" alt="${esc(m.name+' '+m.code)}"></div>`;
+/* small source photos are capped at 2.4x their own width so they don't turn to mush on a 1080p TV */
+const cap = m => (!m.photo && m.w && m.w < 700) ? ` style="max-width:min(90%,${Math.round(m.w*2.4)}px)"` : '';
+const panel = (m, extra) => `<div class="panel ${m.photo?'photo':''} ${extra||''}"><img src="${imgSrc(m)}"${cap(m)} alt="${esc(m.name+' '+m.code)}"></div>`;
+/* family tile name: "NX4", "NX4 Hybrid", "OS Electric", "NE N", "JS N", "Sport DMA", "Coupe BK" */
+const tileName = (m, fam) => {
+  const code = m.code.split(' '), words = m.name.replace(fam, '').trim().split(' ').filter(Boolean);
+  const isSuffix = w => /^(Hybrid|Electric|N)$/.test(w);
+  const pre = m.name.indexOf(fam) > 0 ? [m.name] : words.filter(w => !isSuffix(w)), post = words.filter(w => isSuffix(w) && !code.includes(w));
+  return [...pre, m.code, ...post].join(' ');
+};
 const oilKm = m => (m.service.find(s => s.item === 'Engine oil & filter' && s.act === 'replace') || {}).km;
 
 /* ── data-backed numbers for the explainers ── */
@@ -246,7 +255,7 @@ const R = {
     return `<section class="slide welcome">
       <div class="eyebrow in">${esc(L.dealer)} · ${esc(L.tagline)}</div>
       <h1 class="in">${esc(w.hello)}<b>${esc(w.big)}</b></h1><p class="in">${esc(w.text)}</p>
-      <div class="facts in">${w.facts.map(([v,l]) => `<div><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div></section>`;
+      <div class="facts in">${w.facts.map(([v,l]) => `<div><div class="v">${esc(String(v).replace('{models}', MODELS.length))}</div><div class="l">${esc(l)}</div></div>`).join('')}</div></section>`;
   },
   numbers(){
     const years = MODELS.map(m => parseInt(m.years)).filter(Boolean);
@@ -340,9 +349,9 @@ const R = {
       <div><div class="eyebrow in">Which one do you drive?</div>
         <h2 class="in">The ${esc(s.name)} family</h2></div>
       <div class="tiles" style="--c:${c};--h:${h}px">${ms.map((m,i) => {
-        const tag = m.showroom ? '<em class="now">In showroom</em>' : m.fuel==='ev' ? '<em class="ev">Electric</em>' : (m.fuel!=='petrol' ? '<em>Hybrid</em>' : '');
+        const tag = m.showroom ? '<em class="now">In showroom</em>' : '';   // fuel is already in the tile name
         return `<div class="tile in" style="--d:${i}">${panel(m)}
-          <div class="meta"><b>${esc((m.name.replace(s.name,'').replace(/Hybrid|Electric/,'').trim() + ' ' + m.code).trim())}</b><span>${esc(m.years)}${m.facelift?' · FL':''}</span>${tag}</div></div>`;
+          <div class="meta"><b>${esc(tileName(m, s.name))}</b><span>${esc(m.years)}${m.facelift?' · FL':''}</span>${tag}</div></div>`;
       }).join('')}</div></section>`;
   },
   upgrade(s){
@@ -487,4 +496,5 @@ if (q.has('still')) {                       // render one finished frame (used t
 }
 })();
 </script>
+
 </body></html>
