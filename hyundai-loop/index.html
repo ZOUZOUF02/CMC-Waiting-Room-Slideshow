@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
 <title>Hyundai Waiting Room Loop</title>
 <style>
 @font-face{font-family:"Outfit";font-weight:300;src:url(fonts/outfit-latin-300-normal.woff2) format("woff2")}
@@ -192,6 +192,9 @@ html,body{height:100%;margin:0;background:var(--hy-night);color:var(--ink);font-
 #paused{left:50%;top:50%;transform:translate(-50%,-50%);padding:24px 48px;font-size:32px;letter-spacing:.3em;text-transform:uppercase}
 #info{left:80px;top:120px;padding:14px 22px;font-size:22px;letter-spacing:.06em;color:var(--ink-2)}
 #paused.on,#info.on{display:block}
+#status{position:absolute;left:80px;bottom:104px;z-index:9;max-width:1500px;padding:14px 22px;border-radius:6px;background:#7A1E12;color:#fff;font-family:var(--body);font-size:22px;font-weight:600;line-height:1.35;display:none}
+#status.ok{background:#0F5E3C}
+#status.on{display:block}
 
 /* still mode: used to render the USB video — everything already in place */
 body.still .slide,body.still .slide .in,body.still .car img,body.still .tile{transition:none!important}
@@ -210,23 +213,28 @@ body.still .clock,body.still .progress,body.still .section{display:none}
   <footer class="ticker"><div class="label" id="tickerLabel"></div><div class="track"><div class="run" id="run"></div></div></footer>
   <div id="paused">Paused — press space</div>
   <div id="info"></div>
+  <div id="status"></div>
 </div>
 
 <script src="content.js" charset="utf-8"></script>
 <script src="models.js" charset="utf-8"></script>
+<script src="sheet-config.js" charset="utf-8"></script>
 <script>
 (function(){
-const L = window.LOOP, MODELS = window.MODELS;
+let L = window.LOOP, MODELS = window.MODELS;   // replaced by the Google Sheet when it loads
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt = n => Number(n).toLocaleString('en-US');
 const secs = k => Math.max(5, Math.round((L.TIMING[k] || 12) * (L.PACE || 1)));
 const byTitle = t => MODELS.find(m => m.title === t);
 const FUEL = { petrol:["Petrol",""], mhev:["Petrol · Mild hybrid","mhev"], hev:["Hybrid","hev"], phev:["Hybrid · Plug-in","phev"], ev:["Electric","ev"] };
-const imgSrc = m => 'img/' + m.img + '.jpg';
-/* small source photos are capped at 2.4x their own width so they don't turn to mush on a 1080p TV */
-const cap = m => (!m.photo && m.w && m.w < 700) ? ` style="max-width:min(90%,${Math.round(m.w*2.4)}px)"` : '';
-const panel = (m, extra) => `<div class="panel ${m.photo?'photo':''} ${extra||''}"><img src="${imgSrc(m)}"${cap(m)} alt="${esc(m.name+' '+m.code)}"></div>`;
+const isUrl = x => /^https?:\/\//i.test(x);
+const withExt = (x, ext) => /\.\w{3,4}$/.test(x) ? x : x + ext;
+const imgSrc = m => m.src || ('img/' + m.img + '.jpg');
+const showSrc = x => isUrl(x) ? x : 'img/show/' + withExt(x, '.png');
+/* small photos may grow to fill the frame, but only up to 2.4x their own width so they don't turn to mush on a 1080p TV */
+window.capImg = img => { if (!img.closest('.photo') && img.naturalWidth && img.naturalWidth < 700) img.style.maxWidth = `min(90%, ${Math.round(img.naturalWidth * 2.4)}px)`; };
+const panel = (m, extra) => `<div class="panel ${m.photo?'photo':''} ${extra||''}"><img src="${esc(imgSrc(m))}" onload="capImg(this)" alt="${esc(m.name+' '+m.code)}"></div>`;
 /* family tile name: "NX4", "NX4 Hybrid", "OS Electric", "NE N", "JS N", "Sport DMA", "Coupe BK" */
 const tileName = (m, fam) => {
   const code = m.code.split(' '), words = m.name.replace(fam, '').trim().split(' ').filter(Boolean);
@@ -237,7 +245,20 @@ const tileName = (m, fam) => {
 const oilKm = m => (m.service.find(s => s.item === 'Engine oil & filter' && s.act === 'replace') || {}).km;
 
 /* ── data-backed numbers for the explainers ── */
+const FUELCODE = { 'petrol':'petrol', 'mild hybrid':'mhev', 'hybrid':'hev', 'plug-in hybrid':'phev', 'electric':'ev' };
+/* "engine: GDi except T-GDi", "gearbox: IVT or CVT", "fuel: Hybrid or Plug-in hybrid", "items: <guide page>" */
+function countRule(rule){
+  const r = String(rule).match(/^\s*(engine|gearbox|fuel|items)\s*:\s*(.+)$/i); if (!r) return '';
+  const kind = r[1].toLowerCase(), [inc, exc] = r[2].split(/\s+except\s+/i);
+  const incs = inc.split(/\s+or\s+/i).map(s => s.trim()).filter(Boolean), excs = (exc || '').split(/\s+or\s+/i).map(s => s.trim()).filter(Boolean);
+  const hit = s => incs.some(x => s.includes(x)) && !excs.some(x => s.includes(x));
+  if (kind === 'engine') return MODELS.filter(m => m.powertrains.some(p => hit(p.engine))).length;
+  if (kind === 'gearbox') return MODELS.filter(m => m.powertrains.some(p => p.trans.some(hit))).length;
+  if (kind === 'fuel') { const codes = incs.map(x => FUELCODE[x.toLowerCase()]); return MODELS.filter(m => codes.includes(m.fuel)).length; }
+  const t = byTitle(inc.trim()); return t ? t.service.length : '';
+}
 function countStat(st){
+  if (st.rule) return countRule(st.rule);
   if (st.match) return MODELS.filter(m => m.powertrains.some(p => st.match.test(p.engine))).length;
   if (st.trans) return MODELS.filter(m => m.powertrains.some(p => p.trans.some(t => st.trans.test(t)))).length;
   if (st.fuel) return MODELS.filter(m => st.fuel.includes(m.fuel)).length;
@@ -276,7 +297,7 @@ const R = {
         <div class="eyebrow in"><span class="flag">In our showroom</span>${esc(s.tag)}<span class="code">${esc(s.code)}</span>${pill}</div>
         <h1 class="in">${esc(s.name)}</h1>
         <p class="lede in">${esc(s.lede)}</p>
-        <div class="car"><img src="img/show/${esc(s.image)}.png" alt="${esc(s.name)}"></div>
+        <div class="car"><img src="${esc(showSrc(s.image))}" alt="${esc(s.name)}"></div>
       </div>
       <div class="right">
         <div class="stat in"><span class="v">${esc(s.stat.v)}</span><span class="u">${esc(s.stat.u)}</span><span class="l">${esc(s.stat.l)}</span></div>
@@ -362,7 +383,7 @@ const R = {
       <div class="uprow in">
         <div class="old">${panel(from)}<div class="cap">Your ${esc(from.name)} · ${esc(from.years)}</div></div>
         <div class="arrow"></div>
-        <div class="new"><div class="car"><img src="img/show/${esc(u.to)}.png" alt="${esc(u.toName)}"></div><div class="cap">${esc(u.toName)} ${esc(u.toCode)} · in our showroom now</div></div>
+        <div class="new"><div class="car"><img src="${esc(showSrc(u.to))}" alt="${esc(u.toName)}"></div><div class="cap">${esc(u.toName)} ${esc(u.toCode)} · in our showroom now</div></div>
       </div>
       <div class="uppts in">${u.points.map(([k,h,d]) => `<div class="pt"><div class="k">${esc(k)}</div><div class="h">${esc(h)}</div><div class="d">${esc(d)}</div></div>`).join('')}</div>
     </section>`;
@@ -400,7 +421,7 @@ function buildPlaylist(){
         push({type:'card', m}, sec); push({type:'service', m}, sec);
         if (since >= L.BREAK_EVERY) brk();
       });
-      const u = L.upgrades.find(x => x.family === f.name);
+      const u = L.upgrades.find(x => x.family === f.name && byTitle(x.from));
       if (u) push({type:'upgrade', u}, 'Time for an upgrade?');
     });
     brk();
@@ -413,16 +434,31 @@ function buildPlaylist(){
   return r.list;
 }
 
-const PLAY = buildPlaylist();
-const TOTAL = PLAY.reduce((a,s) => a + s.seconds, 0);
+/* ═════════ start-up: runs once the content is known (sheet, cached copy or built-in) ═════════ */
+let PLAY = [], TOTAL = 0;
+const q = new URLSearchParams(location.search);
+function start(){
+PLAY = buildPlaylist();
+TOTAL = PLAY.reduce((a,s) => a + s.seconds, 0);
 window.__PLAYLIST = PLAY.map((s,i) => ({i, type:s.type, seconds:s.seconds, section:s.section}));
 window.__TOTAL = TOTAL;
+window.__html = n => R[PLAY[n].type](PLAY[n]);   // used for testing
 
 /* ── Chrome ── */
 $('#brand').innerHTML = `${esc(L.dealer)} <small>${esc(L.tagline)}</small>`;
 $('#tickerLabel').textContent = L.tickerLabel;
 $('#run').innerHTML = L.ticker.map(([d,t]) => `<span><b>${esc(d)}</b>${esc(t)}</span>`).join('');
 $('#run').style.setProperty('--ticker-speed', (L.tickerSeconds||80)+'s');
+fit(); clock(); setInterval(clock, 10000);
+if (q.has('still')) {                       // render one finished frame (used to make a video)
+  document.body.classList.add('still');
+  const n = +q.get('still'); idx = n;
+  const el = build(n); el.classList.add('on'); host.appendChild(el);
+  $('#run').innerHTML = `<span><b>${esc(L.dealer)}</b>${esc(L.tagline)} · Authorised Hyundai sales & service</span>`;
+} else {
+  show(q.has('at') ? (+q.get('at') - 1) : 0); wake();
+}
+}
 
 function fit(){
   const s = Math.min(innerWidth/1920, innerHeight/1080);
@@ -468,7 +504,7 @@ function togglePause(){
 const hms = s => `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 function info(){
   const at = PLAY.slice(0, idx).reduce((a,s) => a + s.seconds, 0);
-  $('#info').textContent = `Slide ${idx+1} / ${PLAY.length} · ${PLAY[idx].type} · ${hms(at)} of ${hms(TOTAL)}`;
+  $('#info').textContent = `Slide ${idx+1} / ${PLAY.length} · ${PLAY[idx].type} · ${hms(at)} of ${hms(TOTAL)} · content: ${window.__SOURCE}`;
 }
 async function wake(){ try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){} }
 
@@ -484,17 +520,135 @@ addEventListener('keydown', e => {
 addEventListener('click', () => { if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); wake(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
 
-fit(); clock(); setInterval(clock, 10000);
-const q = new URLSearchParams(location.search);
-if (q.has('still')) {                       // render one finished frame (used to make the USB video)
-  document.body.classList.add('still');
-  const n = +q.get('still'); idx = n;
-  const el = build(n); el.classList.add('on'); host.appendChild(el);
-  $('#run').innerHTML = `<span><b>${esc(L.dealer)}</b>${esc(L.tagline)} · Authorised Hyundai sales & service</span>`;
-} else {
-  show(q.has('at') ? (+q.get('at') - 1) : 0); wake();
+/* ═════════ Google Sheet: every tab is read as CSV; the last good copy is kept on the TV ═════════ */
+const TABS = ['Settings','Ticker','Showroom','Explainers','Tips','Upgrades','Models','Service'];
+const SHEET = (s => (s.match(/\/d\/([a-zA-Z0-9_-]{20,})/) || [, s])[1])(String(q.get('sheet') || window.SHEET_ID || '').trim());   // accepts the bare ID or the whole sheet link; ?sheet=… tests another sheet
+/* Google only lets other web pages (and files opened from your computer) read a sheet through its
+   "script" form (JSONP), so that is what we use. ?gviz=… points it at a test server; local:folder reads CSV files (testing). */
+const GVIZ = q.get('gviz') || 'https://docs.google.com/spreadsheets/d/';
+const NOT_SHARED = 'the sheet is not shared — set Share → General access → "Anyone with the link: Viewer" (and make sure it is a Google Sheet, not an .xlsx file)';
+function loadTab(tab){
+  if (SHEET.startsWith('local:')) return fetch(`${SHEET.slice(6)}/${tab}.csv`, { cache:'no-store' })
+    .then(r => { if (!r.ok) throw new Error(`tab "${tab}" was not found`); return r.text(); }).then(parseCSV);
+  return new Promise((resolve, reject) => {
+    const cb = '__sheet_' + tab + '_' + Math.random().toString(36).slice(2, 8), s = document.createElement('script');
+    let done = false;
+    const end = () => { done = true; clearTimeout(t); delete window[cb]; s.remove(); };
+    const fail = msg => { if (!done) { end(); reject(new Error(msg)); } };
+    const t = setTimeout(() => fail('Google did not answer in time'), 15000);
+    window[cb] = res => {
+      if (done) return; end();
+      if (!res || res.status === 'error') {
+        const m = (res && res.errors && res.errors[0] && (res.errors[0].detailed_message || res.errors[0].message)) || '';
+        return reject(new Error(/sheet|range/i.test(m) ? `tab "${tab}" was not found in the sheet` : (m || NOT_SHARED)));
+      }
+      resolve(tableRows(res.table));
+    };
+    s.onerror = () => fail('Google could not be reached — check the internet connection');
+    s.onload = () => setTimeout(() => fail(NOT_SHARED), 50);   // loaded but never answered = Google sent its sign-in page
+    s.src = `${GVIZ}${encodeURIComponent(SHEET)}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1&sheet=${encodeURIComponent(tab)}&t=${Date.now()}`;
+    document.head.appendChild(s);
+  });
 }
+/* Google's table → [{heading: value}], using each cell's text exactly as shown in the sheet */
+function tableRows(tb){
+  const cell = c => c == null ? '' : (c.f != null ? String(c.f) : (c.v == null ? '' : String(c.v)));
+  let head = (tb.cols || []).map(c => (c.label || '').trim().toLowerCase());
+  const rows = (tb.rows || []).map(r => (r.c || []).map(cell));
+  if (!head.some(Boolean) && rows.length) head = rows.shift().map(x => x.trim().toLowerCase());   // header row not detected
+  return rows.filter(r => r.some(x => x.trim())).map(r => { const o = {}; head.forEach((k,i) => o[k] = (r[i] || '').trim()); return o; });
+}
+function parseCSV(t){
+  const out = []; let row = [], f = '', qt = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (qt) { if (c === '"') { if (t[i+1] === '"') { f += '"'; i++; } else qt = false; } else f += c; }
+    else if (c === '"') qt = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && t[i+1] === '\n') i++; row.push(f); out.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); out.push(row); }
+  const head = (out.shift() || []).map(h => h.trim().toLowerCase());
+  return out.filter(r => r.some(x => x.trim())).map(r => { const o = {}; head.forEach((h,i) => o[h] = (r[i] || '').trim()); return o; });
+}
+function fromSheet(T){
+  const v = (r, k) => r[k.toLowerCase()] || '';
+  const on = r => v(r,'Show').toLowerCase() !== 'no';
+  const yes = x => /^(yes|y|true|1)$/i.test(x);
+  const num = (x, d) => { const n = parseFloat(String(x).replace(/[^0-9.]/g,'')); return isNaN(n) ? d : n; };
+  const S = {}; T.Settings.forEach(r => S[v(r,'Setting').toLowerCase()] = v(r,'Value'));
+  const s = (k, d) => S[k.toLowerCase()] !== undefined && S[k.toLowerCase()] !== '' ? S[k.toLowerCase()] : d;
+  const pts = r => [1,2,3].map(i => [v(r,`Point ${i} label`), v(r,`Point ${i} title`), v(r,`Point ${i} text`)]).filter(p => p.some(Boolean));
+  const B = window.LOOP || { dealer:'Hyundai Lebanon', tagline:'Century Motor Company', BREAK_EVERY:230, tickerLabel:'Service facts', tickerSeconds:95,
+            TIMING:{ welcome:10, numbers:15, model:16, tip:16, explain:18, family:16, card:18, service:30, upgrade:18 } }, BT = B.TIMING;
+  const LOOP = {
+    dealer: s('Dealer name', B.dealer), tagline: s('Tagline', B.tagline),
+    PACE: num(s('Pace'), 1), BREAK_EVERY: num(s('Break every (seconds)'), B.BREAK_EVERY),
+    TIMING: { welcome:num(s('Seconds: welcome'),BT.welcome), numbers:num(s('Seconds: numbers'),BT.numbers), model:num(s('Seconds: showroom model'),BT.model),
+              tip:num(s('Seconds: tip'),BT.tip), explain:num(s('Seconds: explainer'),BT.explain), family:num(s('Seconds: family'),BT.family),
+              card:num(s('Seconds: model card'),BT.card), service:num(s('Seconds: service schedule'),BT.service), upgrade:num(s('Seconds: upgrade'),BT.upgrade) },
+    reloadEachLoop: true,
+    tickerLabel: s('Ticker label', B.tickerLabel), tickerSeconds: num(s('Ticker speed (seconds)'), B.tickerSeconds),
+    ticker: T.Ticker.filter(on).map(r => [v(r,'Label'), v(r,'Text')]),
+    welcome: { hello: s('Welcome line 1', ''), big: s('Welcome line 2', ''), text: s('Welcome text', ''),
+               facts: [1,2,3,4].map(i => [s(`Welcome fact ${i} number`, ''), s(`Welcome fact ${i} caption`, '')]).filter(f => f[0] || f[1]) },
+    closing: { eyebrow: s('Closing eyebrow',''), head: s('Closing title',''), text: s('Closing text',''), foot: s('Closing footer','') },
+    showroom: T.Showroom.filter(on).map(r => { const b = v(r,'Badge colour').toLowerCase();
+      return { name:v(r,'Name'), code:v(r,'Code'), tag:v(r,'Category'), pill:v(r,'Fuel badge'), pillClass:{hybrid:'hev',electric:'ev',n:'n'}[b] || '', nglow: b === 'n',
+               image:v(r,'Photo'), lede:v(r,'Headline'), stat:{v:v(r,'Big number'), u:v(r,'Unit'), l:v(r,'Number caption')}, points:pts(r) }; }),
+    explain: T.Explainers.filter(on).map(r => ({ eyebrow:v(r,'Eyebrow'), head:v(r,'Title'), text:v(r,'Text'),
+               stat: v(r,'Count from guide') ? { rule:v(r,'Count from guide'), label:v(r,'Number caption') } : null, big:v(r,'Big number'), bigLabel:v(r,'Number caption') })),
+    tips: T.Tips.filter(on).map(r => ({ eyebrow:v(r,'Eyebrow'), head:v(r,'Title'), text:v(r,'Text'), foot:v(r,'Footer') })),
+    upgrades: T.Upgrades.filter(on).map(r => ({ family:v(r,'Family'), from:v(r,'From (guide page)'), head:v(r,'Headline (optional)'),
+               toName:v(r,'New model'), toCode:v(r,'New code'), to:v(r,'Photo'), points:pts(r) })),
+  };
+  const MODELS = T.Models.filter(on).map(r => {
+    const photo = v(r,'Photo');
+    return { title:v(r,'Guide page'), family:v(r,'Family'), name:v(r,'Name'), code:v(r,'Code'), facelift:yes(v(r,'Facelift')), years:v(r,'Years'),
+      fuel: FUELCODE[v(r,'Fuel').toLowerCase()] || 'petrol', showroom: v(r,'Showroom note') || undefined,
+      src: photo ? (isUrl(photo) ? photo : 'img/' + withExt(photo, '.jpg')) : '', photo: yes(v(r,'Photo has background')),
+      rule: { km: num(v(r,'Time rule km'), 10000), months: num(v(r,'Time rule months'), 6) },
+      powertrains: v(r,'Powertrains').split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+        const i = l.indexOf(':'); return i < 0 ? { engine:l, trans:[] } : { engine:l.slice(0,i).trim(), trans:l.slice(i+1).split(',').map(x => x.trim()).filter(Boolean) }; }),
+      service: [] };
+  });
+  T.Service.filter(on).forEach(r => {
+    const m = MODELS.find(x => x.title === v(r,'Guide page')), km = num(v(r,'Interval (km)'), 0);
+    if (!m || !km) return;
+    const act = v(r,'Action').toLowerCase();
+    m.service.push({ item:v(r,'Item'), act: ['replace','inspect','service'].includes(act) ? act : 'replace', km, ...(v(r,'Note') ? { note:v(r,'Note') } : {}) });
+  });
+  if (!MODELS.length || !LOOP.showroom.length) throw new Error('sheet looks empty');
+  return { LOOP, MODELS };
+}
+async function fetchSheet(){
+  const tables = await Promise.all(TABS.map(loadTab));
+  const T = {}; TABS.forEach((t,i) => T[t] = tables[i]);
+  return fromSheet(T);
+}
+(async function boot(){
+  window.__SOURCE = 'built-in';
+  if (SHEET && !q.has('builtin')) {
+    try { const d = await fetchSheet(); L = d.LOOP; MODELS = d.MODELS; window.__SOURCE = 'Google Sheet';
+          try { localStorage.setItem('hyundai-loop-content', JSON.stringify(d)); } catch(e){} }
+    catch (e) {
+      console.warn('Sheet not loaded:', e.message); window.__WHY = e.message;
+      try { const c = JSON.parse(localStorage.getItem('hyundai-loop-content') || 'null'); if (c) { L = c.LOOP; MODELS = c.MODELS; window.__SOURCE = 'last saved copy of the sheet'; } } catch(_){}
+    }
+  }
+  if (!L || !MODELS) {   // no sheet, no saved copy and content.js / models.js missing from the folder
+    $('#slides').innerHTML = `<section class="slide tip on"><div class="eyebrow">The loop can't start</div><h2>No content found.</h2>
+      <p>${esc(window.__WHY ? 'Google Sheet: ' + window.__WHY + '. ' : '')}content.js and models.js are also missing — keep all of the loop's files together in one folder.</p></section>`;
+    return;
+  }
+  start();
+  const st = $('#status');
+  if (!SHEET) st.textContent = 'Content: built into the loop (no Google Sheet set in sheet-config.js)';
+  else if (window.__SOURCE === 'Google Sheet') { st.textContent = '✓ Content loaded from the Google Sheet'; st.classList.add('ok'); }
+  else st.textContent = `Google Sheet not loaded: ${window.__WHY} (showing the ${window.__SOURCE === 'built-in' ? 'built-in content' : 'last saved copy'})`;
+  if (!q.has('still')) { st.classList.add('on'); setTimeout(() => st.classList.remove('on'), 20000); }
+})();
 })();
 </script>
-
 </body></html>
