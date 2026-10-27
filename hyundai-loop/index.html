@@ -321,7 +321,7 @@ const R = {
     const m = s.m, [fl, fc] = FUEL[m.fuel], ev = m.fuel === 'ev';
     const oil = oilKm(m);
     const stat = ev
-      ? {v:fmt(m.rule ? m.rule.km : 15000), u:"km", l:`service interval — or ${m.rule?m.rule.months:12} months. No engine oil.`}
+      ? {v:fmt(Math.min.apply(null, m.service.map(x => x.km).concat([15000]))), u:"km", l:"to the first scheduled visit. No engine oil."}
       : {v:fmt(oil), u:"km", l:"engine oil & filter interval"};
     const rows = m.powertrains;
     const dense = rows.length >= 4 || rows.reduce((a,p) => a + p.trans.length, 0) > 7;
@@ -364,8 +364,8 @@ const R = {
   },
   family(s){
     const ms = s.models, n = ms.length;
-    const c = n <= 4 ? n : n <= 6 ? 3 : n <= 8 ? 4 : 5;
-    const rowsN = Math.ceil(n / c), h = rowsN === 1 ? 360 : 230;
+    const c = n <= 4 ? n : n <= 6 ? 3 : n <= 8 ? 4 : n <= 10 ? 5 : 6;
+    const rowsN = Math.ceil(n / c), h = rowsN === 1 ? 360 : n > 10 ? 190 : 230;
     return `<section class="slide family">
       <div><div class="eyebrow in">Which one do you drive?</div>
         <h2 class="in">The ${esc(s.name)} family</h2></div>
@@ -521,21 +521,23 @@ addEventListener('click', () => { if (!document.fullscreenElement && document.do
 document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
 
 /* ═════════ Google Sheet: every tab is read as CSV; the last good copy is kept on the TV ═════════ */
+/* The loop's own Google Sheet. sheet-config.js can point it at another sheet; leaving that file empty no longer switches the sheet off. */
+const DEFAULT_SHEET = '13yfcg64EdbI-tXLNe3aMHQTHZA05asHxKeTfoCtVz-E';
 const TABS = ['Settings','Ticker','Showroom','Explainers','Tips','Upgrades','Models','Service'];
-const SHEET = (s => (s.match(/\/d\/([a-zA-Z0-9_-]{20,})/) || [, s])[1])(String(q.get('sheet') || window.SHEET_ID || '').trim());   // accepts the bare ID or the whole sheet link; ?sheet=… tests another sheet
+const SHEET = (s => (s.match(/\/d\/([a-zA-Z0-9_-]{20,})/) || [, s])[1])(String(q.get('sheet') || window.SHEET_ID || DEFAULT_SHEET).trim());   // accepts the bare ID or the whole sheet link; ?sheet=… tests another sheet
 /* Google only lets other web pages (and files opened from your computer) read a sheet through its
    "script" form (JSONP), so that is what we use. ?gviz=… points it at a test server; local:folder reads CSV files (testing). */
 const GVIZ = q.get('gviz') || 'https://docs.google.com/spreadsheets/d/';
 const NOT_SHARED = 'the sheet is not shared — set Share → General access → "Anyone with the link: Viewer" (and make sure it is a Google Sheet, not an .xlsx file)';
-function loadTab(tab){
+function loadTab(tab, ms = 45000){
   if (SHEET.startsWith('local:')) return fetch(`${SHEET.slice(6)}/${tab}.csv`, { cache:'no-store' })
     .then(r => { if (!r.ok) throw new Error(`tab "${tab}" was not found`); return r.text(); }).then(parseCSV);
   return new Promise((resolve, reject) => {
     const cb = '__sheet_' + tab + '_' + Math.random().toString(36).slice(2, 8), s = document.createElement('script');
     let done = false;
-    const end = () => { done = true; clearTimeout(t); delete window[cb]; s.remove(); };
+    const end = () => { done = true; clearTimeout(t); window[cb] = () => {}; s.remove(); };   // a late answer lands harmlessly
     const fail = msg => { if (!done) { end(); reject(new Error(msg)); } };
-    const t = setTimeout(() => fail('Google did not answer in time'), 15000);
+    const t = setTimeout(() => fail('Google did not answer in time — the internet connection may be slow'), ms);
     window[cb] = res => {
       if (done) return; end();
       if (!res || res.status === 'error') {
@@ -623,19 +625,28 @@ function fromSheet(T){
   return { LOOP, MODELS };
 }
 async function fetchSheet(){
-  const tables = await Promise.all(TABS.map(loadTab));
+  // a slow connection gets a second, longer try for any tab that timed out
+  const tables = await Promise.all(TABS.map(t => loadTab(t).catch(e => /in time/.test(e.message) ? loadTab(t, 90000) : Promise.reject(e))));
   const T = {}; TABS.forEach((t,i) => T[t] = tables[i]);
   return fromSheet(T);
 }
 (async function boot(){
   window.__SOURCE = 'built-in';
   if (SHEET && !q.has('builtin')) {
-    try { const d = await fetchSheet(); L = d.LOOP; MODELS = d.MODELS; window.__SOURCE = 'Google Sheet';
-          try { localStorage.setItem('hyundai-loop-content', JSON.stringify(d)); } catch(e){} }
-    catch (e) {
-      console.warn('Sheet not loaded:', e.message); window.__WHY = e.message;
-      try { const c = JSON.parse(localStorage.getItem('hyundai-loop-content') || 'null'); if (c) { L = c.LOOP; MODELS = c.MODELS; window.__SOURCE = 'last saved copy of the sheet'; } } catch(_){}
+    const KEY = 'hyundai-loop-content', save = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch(e){} };
+    let cached = null; try { cached = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){}
+    $('#slides').innerHTML = `<section class="slide tip on"><div class="eyebrow">${esc((L && L.dealer) || 'Hyundai Lebanon')}</div><h2>Loading…</h2></section>`;
+    const live = fetchSheet();
+    live.catch(e => { console.warn('Sheet not loaded:', e.message); window.__WHY = e.message; });
+    // With a saved copy, wait at most 10 s for the sheet; if it's slower, start with the saved copy and keep the fresh one for the next loop.
+    const d = await (cached ? Promise.race([live, new Promise(r => setTimeout(r, 10000, null))]) : live).catch(() => null);
+    if (d) { L = d.LOOP; MODELS = d.MODELS; window.__SOURCE = 'Google Sheet'; save(d); }
+    else if (cached) {
+      L = cached.LOOP; MODELS = cached.MODELS; window.__SOURCE = 'last saved copy of the sheet';
+      if (!window.__WHY) window.__WHY = 'Google is slow to answer — your latest edits will appear from the next loop';
+      live.then(save, () => {});
     }
+    $('#slides').innerHTML = '';
   }
   if (!L || !MODELS) {   // no sheet, no saved copy and content.js / models.js missing from the folder
     $('#slides').innerHTML = `<section class="slide tip on"><div class="eyebrow">The loop can't start</div><h2>No content found.</h2>
